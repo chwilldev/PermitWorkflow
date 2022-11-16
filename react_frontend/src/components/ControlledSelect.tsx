@@ -12,6 +12,7 @@ import {
   OnChangeValue,
   ActionMeta,
 } from 'chakra-react-select';
+import { SubOption } from '../types';
 
 interface ControlledSelectProps<
   FormValues extends FieldValues = FieldValues,
@@ -23,9 +24,9 @@ interface ControlledSelectProps<
   label?: string;
 }
 
-const createOption = (label: string) => ({
+const createOption = (label: string, value: SubOption) => ({
   label,
-  value: label,
+  value,
 });
 
 export type SelectOption = ReturnType<typeof createOption>;
@@ -64,8 +65,8 @@ function ControlledSelect<
     const lastSelectOption = action.option as SelectOption;
     if (action.action === 'select-option') {
       if (
-        lastSelectOption.value !== 'none' &&
-        receivedOptions.findIndex((option) => option.value === 'none')
+        lastSelectOption.value !== SubOption.None &&
+        receivedOptions.findIndex((option) => option.value === SubOption.None)
       ) {
         field.onChange([...receivedOptions]);
       } else {

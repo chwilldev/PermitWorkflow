@@ -19,18 +19,17 @@ services:
     command: npm run dev
     environment: 
       - PORT=${API_PORT}
-      - DB_URL=postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - DB_URL=mongodb://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    depends_on:
+      - db
 
   db:
-    image: postgres
+    image: mongo
     restart: always
     env_file: .env
     container_name: "${APP_NAME}-database"
-    environment: 
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
-  
+    ports:
+      - '27017:27017'
   frontend:
     build:
       context: ./react_frontend

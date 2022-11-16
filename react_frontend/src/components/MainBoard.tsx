@@ -6,31 +6,28 @@ import {
   Heading,
   Button,
   Stack,
-  Code,
   Text,
+  Link,
 } from '@chakra-ui/react';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { OptionBase } from 'chakra-react-select';
 
-import ControlledSelect, { SelectOption } from './ControlledSelect';
+import { postUserSelections } from '../apis';
+import ControlledSelect from './ControlledSelect';
 import {
   RESIDENTIAL_WORK_TYPES,
   EXTERIOR_WORK_TYPES,
   INTERIOR_WORK_TYPES,
   INVOLVED_WORK_TYPES,
+  WORK_PERMIT_REQUIREMENTS,
 } from '../constant';
-
-export interface SelectOptions extends OptionBase {
-  label: string;
-  value: string;
-}
+import { SubOption, WorkPermitRequirement, Option, Attachment } from '../types';
 
 interface FormValues {
-  residentialWorkTypes: SelectOptions[];
-  involvedWorkTypes: SelectOptions[];
-  exteriorWorkTypes: SelectOptions[];
-  interiorWorkTypes: SelectOptions[];
+  residentialWorkTypes: Option[];
+  involvedWorkTypes: Option[];
+  exteriorWorkTypes: Option[];
+  interiorWorkTypes: Option[];
 }
 
 const schema = yup.object().shape({
@@ -56,7 +53,7 @@ const schema = yup.object().shape({
       'You must select one of type to know the necessary Work Permit',
       (value, ctx) => {
         return ctx.parent.residentialWorkTypes.findIndex(
-          (type: SelectOption) => type.value === 'exterior'
+          (type: Option) => type.value === SubOption.ExteriorWork
         ) !== -1
           ? !!value?.length
           : true;
@@ -70,7 +67,7 @@ const schema = yup.object().shape({
       'You must select one of type to know the necessary Work Permit',
       (value, ctx) => {
         return ctx.parent.residentialWorkTypes.findIndex(
-          (type: SelectOption) => type.value === 'interior'
+          (type: Option) => type.value === SubOption.InteriorWork
         ) !== -1
           ? !!value?.length
           : true;
@@ -101,9 +98,14 @@ const defaultValues: FormValues = {
 };
 
 const MainBoard: FC = () => {
-  const [residentialWorkTypeState, setResidentialWorkTypeState] = useState<
-    string[]
+  const [residentialWorkTypesState, setResidentialWorkTypeState] = useState<
+    SubOption[]
   >([]);
+
+  const [workPermitRequirements, setWorkPermitRequirements] = useState<
+    WorkPermitRequirement[]
+  >([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   const {
     control,
@@ -117,10 +119,10 @@ const MainBoard: FC = () => {
   });
 
   useEffect(() => {
-    const subscription = watch((value, { name, type }) => {
+    const subscription = watch((value, { name }) => {
       if (name === 'residentialWorkTypes') {
         const receivedResidentialWorkTypes =
-          value.residentialWorkTypes as ReadonlyArray<SelectOption>;
+          value.residentialWorkTypes as ReadonlyArray<Option>;
         setResidentialWorkTypeState(
           receivedResidentialWorkTypes.map((type) => {
             return type.value;
@@ -131,14 +133,32 @@ const MainBoard: FC = () => {
     return () => subscription.unsubscribe();
   }, [watch]);
 
-  const onSubmit: SubmitHandler<FormValues> = (values) => {
-    console.log(values);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        alert(JSON.stringify(values, null, 2));
-        resolve(values);
-      }, 3000);
+  const onSubmit: SubmitHandler<FormValues> = async (values) => {
+    const residentialPayloadData = [];
+    if (residentialWorkTypesState.indexOf(SubOption.ExteriorWork) !== -1) {
+      residentialPayloadData.push({
+        title: SubOption.ExteriorWork,
+        subOptions: values.exteriorWorkTypes.map((type) => type.value),
+      });
+    }
+
+    if (residentialWorkTypesState.indexOf(SubOption.InteriorWork) !== -1) {
+      residentialPayloadData.push({
+        title: SubOption.InteriorWork,
+        subOptions: values.interiorWorkTypes.map((type) => type.value),
+      });
+    }
+
+    const involvedWorkTypesPayloadData = values.involvedWorkTypes.map(
+      (type) => type.value
+    );
+
+    const response = await postUserSelections({
+      residentialPayloadData,
+      involvedWorkTypesPayloadData,
     });
+    setWorkPermitRequirements(response.workPermitRequirements);
+    setAttachments(response.attachments);
   };
 
   const handleReset = () => {
@@ -151,19 +171,8 @@ const MainBoard: FC = () => {
         Permit Workflow
       </Heading>
 
-      <Text mb={4}>
-        A Sign up form example with{' '}
-        <Code fontSize="inherit">react-hook-form</Code> &{' '}
-        <Code fontSize="inherit">@chakra-ui/react</Code>
-      </Text>
-
-      <Text mb={8}>
-        An advanced example using <Code fontSize="inherit">yup</Code> to
-        validate <Code fontSize="inherit">chakra-react-select</Code>
-      </Text>
-
       <Stack spacing={6}>
-        <ControlledSelect<FormValues, SelectOptions, true>
+        <ControlledSelect<FormValues, Option, true>
           isMulti
           name="residentialWorkTypes"
           control={control}
@@ -171,8 +180,8 @@ const MainBoard: FC = () => {
           placeholder="Select work types"
           options={RESIDENTIAL_WORK_TYPES}
         />
-        {residentialWorkTypeState.indexOf('interior') !== -1 && (
-          <ControlledSelect<FormValues, SelectOptions, true>
+        {residentialWorkTypesState.indexOf(SubOption.InteriorWork) !== -1 && (
+          <ControlledSelect<FormValues, Option, true>
             isMulti
             name="interiorWorkTypes"
             control={control}
@@ -181,8 +190,8 @@ const MainBoard: FC = () => {
             options={INTERIOR_WORK_TYPES}
           />
         )}
-        {residentialWorkTypeState.indexOf('exterior') !== -1 && (
-          <ControlledSelect<FormValues, SelectOptions, true>
+        {residentialWorkTypesState.indexOf(SubOption.ExteriorWork) !== -1 && (
+          <ControlledSelect<FormValues, Option, true>
             isMulti
             name="exteriorWorkTypes"
             control={control}
@@ -192,7 +201,7 @@ const MainBoard: FC = () => {
           />
         )}
 
-        <ControlledSelect<FormValues, SelectOptions, true>
+        <ControlledSelect<FormValues, Option, true>
           isMulti
           name="involvedWorkTypes"
           control={control}
@@ -202,12 +211,7 @@ const MainBoard: FC = () => {
         />
 
         <ButtonGroup>
-          <Button
-            type="button"
-            isLoading={isSubmitting}
-            onClick={handleReset}
-            w="full"
-          >
+          <Button type="button" onClick={handleReset} w="full">
             Reset
           </Button>
           <Button
@@ -219,6 +223,43 @@ const MainBoard: FC = () => {
             Submit
           </Button>
         </ButtonGroup>
+        {workPermitRequirements.length && (
+          <Text fontSize="2xl" fontWeight="bold">
+            Required Work Permits
+          </Text>
+        )}
+        {workPermitRequirements.map(
+          (requirement: WorkPermitRequirement, index: number) => (
+            <div key={index}>
+              <Text fontSize="xl" pl="3">
+                {WORK_PERMIT_REQUIREMENTS[requirement].title}
+              </Text>
+              <Text
+                mb="4"
+                pl="5"
+                dangerouslySetInnerHTML={{
+                  __html: WORK_PERMIT_REQUIREMENTS[requirement].content,
+                }}
+              />
+            </div>
+          )
+        )}
+        {attachments.length && (
+          <Text fontSize="xl" fontWeight="bold">
+            Attachments
+          </Text>
+        )}
+        {attachments.map((attachment, index) => (
+          <Link
+            color="blue.800"
+            textDecoration="underline"
+            pl="3"
+            key={index}
+            href={attachment.link}
+          >
+            {attachment.title}
+          </Link>
+        ))}
       </Stack>
     </Container>
   );
